@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Latinské BINGO – hra pro hodinu latiny</title>
+<meta name="description" content="Interaktivní bingo hra pro středoškolskou výuku latiny.">
+<meta name="theme-color" content="#8B1A1A">
+<meta property="og:title" content="Latinské BINGO">
+<meta property="og:description" content="Interaktivní bingo hra pro hodinu latiny – slovíčka a římské reálie.">
+<meta property="og:type" content="website"><meta property="og:locale" content="cs_CZ">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- PASSWORD MODAL -->
+<div class="modal-overlay" id="pw-modal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closePwModal()">✕</button>
+    <h2>🔒 Učitelský přístup</h2>
+    <p>Zadej heslo pro přístup ke správě pojmů.<br>
+       <span style="font-size:11px">(heslo lze změnit přímo v editoru)</span></p>
+    <input class="modal-input" type="password" id="pw-input" placeholder="••••••"
+      onkeydown="if(event.key==='Enter')checkPassword()">
+    <div class="modal-error" id="pw-error">Nesprávné heslo. Zkus to znovu.</div>
+    <button class="btn btn-red" onclick="checkPassword()">Vstoupit</button>
+  </div>
+</div>
+
+<header>
+  <div class="logo">BINGO <span>Latina</span></div>
+  <nav>
+    <button class="nav-btn active" onclick="switchScreen('teacher',this)">Losování</button>
+    <button class="nav-btn"        onclick="switchScreen('student',this)">Moje karta</button>
+    <button class="nav-btn"        onclick="openAdmin()" id="admin-nav-btn">⚙ Správa</button>
+  </nav>
+</header>
+
+<!-- ════ TEACHER ════ -->
+<div id="screen-teacher" class="screen visible">
+  <div class="draw-stage">
+    <div class="draw-qlabel">Otázka pro žáky</div>
+    <div class="draw-question" id="cur-q">Stiskni tlačítko a začni hrát ↓</div>
+    <div class="draw-reveal-wrap" id="reveal-wrap" style="display:none">
+      <button class="draw-reveal-btn" onclick="toggleAnswer()">▸ Ukázat odpověď</button>
+      <div class="draw-answer" id="cur-answer"></div>
+      <div class="draw-cat"   id="cur-cat"></div>
+    </div>
+  </div>
+  <div class="prog-wrap" id="prog-wrap" style="display:none">
+    <div class="prog-track"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
+    <div class="prog-label" id="prog-label"></div>
+  </div>
+  <button class="btn btn-red" id="btn-draw" onclick="drawTerm()">🏺 Vytáhni otázku</button>
+  <button class="btn btn-ghost" onclick="resetDraw()">↺ Začít znovu</button>
+  <div id="drawn-wrap" style="display:none">
+    <div class="chips-wrap">
+      <div class="chips-header">
+        <span>Vytažené pojmy</span>
+        <span id="drawn-count" style="font-weight:400"></span>
+      </div>
+      <div class="chips" id="chips"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ STUDENT ════ -->
+<div id="screen-student" class="screen">
+
+  <!-- VIEW A: BUILDER -->
+  <div id="view-builder">
+    <div class="panel stripe">
+      <h2>Sestav si svou kartu</h2>
+      <p>Klikni na pojem v seznamu vpravo → zvýrazní se. Pak klikni na políčko na kartě, kam ho chceš umístit. Klik na obsazené políčko ho odebere. Prostřední políčko <strong>FREE</strong> je vždy zdarma.</p>
+    </div>
+
+    <div class="builder-layout">
+      <!-- LEFT: 5×5 card grid -->
+      <div>
+        <div class="builder-card" id="builder-card">
+          <div class="builder-card-header">
+            <span>B</span><span>I</span><span>N</span><span>G</span><span>O</span>
+          </div>
+          <div class="build-grid" id="build-grid"></div>
+        </div>
+
+        <div class="builder-footer">
+          <span class="slots-badge" id="slots-badge">0 / 24 políček</span>
+          <button class="btn btn-ghost" style="min-width:0;padding:8px 12px;font-size:13px;margin:0;" onclick="randomFillRemaining()">🎲 Náhodně doplnit</button>
+          <button class="btn btn-ghost" style="min-width:0;padding:8px 12px;font-size:13px;margin:0;" onclick="clearCard()">✕ Vymazat vše</button>
+        </div>
+
+        <div style="margin-top:.75rem">
+          <button class="btn btn-red" id="btn-play" onclick="startPlaying()" disabled>
+            Hrát s touto kartou →
+          </button>
+        </div>
+      </div>
+
+      <!-- RIGHT: term pool -->
+      <div class="pool-panel">
+        <div class="pool-hd">
+          <span>Pojmy (<span id="pool-count"></span>)</span>
+          <button onclick="randomFillRemaining()">Doplnit náhodně</button>
+        </div>
+        <input class="pool-search" id="pool-search" type="text" placeholder="Hledat pojem…" oninput="filterPool()">
+        <div class="pool-list" id="pool-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIEW B: PLAY CARD -->
+  <div id="view-card" style="display:none">
+    <div class="win-banner" id="win-banner">
+      <h3>✦ BINGO! ✦</h3>
+      <p>Gratulujeme — máš celou řadu!</p>
+    </div>
+    <div class="bingo-wrap">
+      <div class="bingo-letters">
+        <span>B</span><span>I</span><span>N</span><span>G</span><span>O</span>
+      </div>
+      <div class="bingo-grid" id="bingo-grid"></div>
+    </div>
+    <p class="bingo-hint">Zaškrtni pojem, až uslyšíš jeho popis — jen pokud víš, který to je!</p>
+    <div class="btn-row">
+      <button class="btn btn-red"   onclick="backToBuilder()">← Upravit kartu</button>
+      <button class="btn btn-ghost" onclick="resetMarks()">↺ Odznačit vše</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ ADMIN ════ -->
+<div id="screen-admin" class="screen">
+  <div class="admin-topbar">
+    <h2>⚙ Správa pojmů</h2>
+    <span class="admin-count" id="admin-count"></span>
+  </div>
+  <div class="add-form">
+    <h3>Přidat nový pojem</h3>
+    <div class="add-row">
+      <input  type="text" id="new-term" placeholder="Název pojmu (lat.)">
+      <input  type="text" id="new-q"    placeholder="Otázka / popis pro žáky">
+      <select id="new-cat">
+        <option value="vocab">Slovíčko</option>
+        <option value="realia">Reálie</option>
+      </select>
+      <button class="btn-add" onclick="addTerm()">+ Přidat</button>
+    </div>
+    <div class="add-hint">Název = co uvidí žáci na kartičce. Otázka = co čte učitel nahlas.</div>
+  </div>
+  <div class="term-list" id="term-list"></div>
+  <div class="save-bar">
+    <button class="btn btn-red" onclick="saveTerms()">💾 Uložit změny</button>
+    <span class="save-note" id="save-note"></span>
+    <div class="save-bar-right">
+      <button class="btn btn-ghost" onclick="changePassword()" style="width:auto;padding:8px 14px;font-size:13px;">🔑 Heslo</button>
+      <button class="btn btn-ghost" onclick="resetToDefaults()" style="width:auto;padding:8px 14px;font-size:13px;">↺ Výchozí</button>
+    </div>
+  </div>
+</div>
+
+<footer style="text-align:center;padding:1.5rem 1rem 2.5rem;font-size:12px;color:#6B5E52;font-family:'Inter',sans-serif;">
+  Latinské BINGO — volně k použití pro vzdělávací účely &nbsp;·&nbsp;
+  <a href="https://github.com" target="_blank" rel="noopener" style="color:#8B1A1A;text-decoration:none;font-weight:500;">GitHub</a>
+</footer>
+
+<script>
+/* ══════════════════════════════════════════
+   DATA
+══════════════════════════════════════════ */
+const DEFAULT_TERMS = [
+  {t:"aqua",        s:"Jak Římanům říkali vodě?",                                              c:"vocab"},
+  {t:"terra",       s:"Co je latinsky země nebo půda?",                                        c:"vocab"},
+  {t:"luna",        s:"Jak se latinsky řekne měsíc (ten na nebi)?",                            c:"vocab"},
+  {t:"sol",         s:"Jak Římané nazývali slunce?",                                           c:"vocab"},
+  {t:"via",         s:"Jak se latinsky řekne cesta nebo ulice?",                               c:"vocab"},
+  {t:"porta",       s:"Jak se latinsky řekne brána nebo dveře?",                               c:"vocab"},
+  {t:"caelum",      s:"Co znamená latinsky nebe nebo nebesa?",                                 c:"vocab"},
+  {t:"pax",         s:"Jak se latinsky řekne mír?",                                            c:"vocab"},
+  {t:"bellum",      s:"Jak se latinsky řekne válka?",                                          c:"vocab"},
+  {t:"rex",         s:"Jak se latinsky řekne král?",                                           c:"vocab"},
+  {t:"dux",         s:"Jak Římané nazývali vůdce nebo velitele?",                              c:"vocab"},
+  {t:"miles",       s:"Jak se latinsky řekne voják?",                                          c:"vocab"},
+  {t:"populus",     s:"Jak se latinsky řekne lid nebo národ?",                                 c:"vocab"},
+  {t:"senatus",     s:"Jak se latinsky řekne senát?",                                          c:"vocab"},
+  {t:"lex",         s:"Jak se latinsky řekne zákon?",                                          c:"vocab"},
+  {t:"virtus",      s:"Co znamená latinsky statečnost nebo ctnost?",                           c:"vocab"},
+  {t:"gloria",      s:"Jak se latinsky řekne sláva?",                                          c:"vocab"},
+  {t:"fama",        s:"Co znamená latinsky pověst nebo zpráva?",                               c:"vocab"},
+  {t:"amor",        s:"Jak se latinsky řekne láska?",                                          c:"vocab"},
+  {t:"mors",        s:"Jak se latinsky řekne smrt?",                                           c:"vocab"},
+  {t:"vita",        s:"Jak se latinsky řekne život?",                                          c:"vocab"},
+  {t:"tempus",      s:"Jak se latinsky řekne čas?",                                            c:"vocab"},
+  {t:"annus",       s:"Jak se latinsky řekne rok?",                                            c:"vocab"},
+  {t:"dies",        s:"Jak se latinsky řekne den?",                                            c:"vocab"},
+  {t:"nox",         s:"Jak se latinsky řekne noc?",                                            c:"vocab"},
+  {t:"caput",       s:"Co znamená latinsky hlava nebo hlavní město?",                          c:"vocab"},
+  {t:"manus",       s:"Jak se latinsky řekne ruka?",                                           c:"vocab"},
+  {t:"oculus",      s:"Jak se latinsky řekne oko?",                                            c:"vocab"},
+  {t:"verbum",      s:"Jak se latinsky řekne slovo?",                                          c:"vocab"},
+  {t:"liber",       s:"Jak se latinsky řekne kniha nebo svobodný?",                            c:"vocab"},
+  {t:"forum",       s:"Jak Římané nazývali tržiště nebo náměstí?",                             c:"vocab"},
+  {t:"urbs",        s:"Jak se latinsky řekne město?",                                          c:"vocab"},
+  {t:"domus",       s:"Jak se latinsky řekne dům nebo domov?",                                 c:"vocab"},
+  {t:"nauta",       s:"Jak se latinsky řekne námořník?",                                       c:"vocab"},
+  {t:"puer",        s:"Jak se latinsky řekne chlapec?",                                        c:"vocab"},
+  {t:"puella",      s:"Jak se latinsky řekne dívka?",                                          c:"vocab"},
+  {t:"magister",    s:"Jak Římané nazývali učitele?",                                          c:"vocab"},
+  {t:"discipulus",  s:"Jak se latinsky řekne žák?",                                            c:"vocab"},
+  {t:"amicus",      s:"Jak se latinsky řekne přítel?",                                         c:"vocab"},
+  {t:"hostis",      s:"Jak se latinsky řekne nepřítel?",                                       c:"vocab"},
+  {t:"silva",       s:"Jak se latinsky řekne les?",                                            c:"vocab"},
+  {t:"flumen",      s:"Jak se latinsky řekne řeka?",                                           c:"vocab"},
+  {t:"mare",        s:"Jak se latinsky řekne moře?",                                           c:"vocab"},
+  {t:"mons",        s:"Jak se latinsky řekne hora?",                                           c:"vocab"},
+  {t:"iter",        s:"Jak se latinsky řekne cesta nebo pochod vojska?",                       c:"vocab"},
+  {t:"Caesar",          s:"Který římský diktátor byl zavražděn přímo v Senátu?",               c:"realia"},
+  {t:"Augustus",        s:"Kdo byl prvním císařem Říma a nastolil éru Pax Romana?",            c:"realia"},
+  {t:"Cicero",          s:"Kdo byl největším řečníkem starověkého Říma?",                      c:"realia"},
+  {t:"Nero",            s:"Který císař proslul tím, že hrál na lyru, zatímco Řím hořel?",     c:"realia"},
+  {t:"Marcus Aurelius", s:"Který císař byl zároveň stoickým filozofem?",                       c:"realia"},
+  {t:"Vergilius",       s:"Kdo napsal epos Aeneis o trojském hrdinovi?",                       c:"realia"},
+  {t:"Horatius",        s:"Který básník proslul výrokem Carpe diem?",                          c:"realia"},
+  {t:"Ovidius",         s:"Kdo napsal Proměny a byl Augustem vyhnán z Říma?",                 c:"realia"},
+  {t:"Spartacus",       s:"Kdo vedl největší otrocké povstání v římských dějinách?",           c:"realia"},
+  {t:"Hannibal",        s:"Který kartaginský vojevůdce překročil Alpy se slony?",              c:"realia"},
+  {t:"Kleopatra",       s:"Která egyptská královna byla spojenkyní Caesara i Marka Antonia?",  c:"realia"},
+  {t:"Romulus",         s:"Kdo je podle legendy zakladatelem města Říma?",                     c:"realia"},
+  {t:"Koloseum",        s:"Jak se jmenuje slavná aréna v Římě, kde bojovali gladiátoři?",      c:"realia"},
+  {t:"Pantheon",        s:"Jak se jmenuje chrám zasvěcený všem bohům, stojící dodnes v Římě?",c:"realia"},
+  {t:"Circus Maximus",  s:"Jak se jmenoval největší hippodrom Říma pro závody vozů?",          c:"realia"},
+  {t:"Capitolium",      s:"Jak se jmenoval posvátný vrch Říma?",                              c:"realia"},
+  {t:"Forum Romanum",   s:"Jak se jmenovalo centrum veřejného života starověkého Říma?",      c:"realia"},
+  {t:"SPQR",            s:"Co znamená zkratka na standartách legií — senát a lid římský?",     c:"realia"},
+  {t:"Rubicon",         s:"Jakou řeku Caesar překročil a tím začal občanskou válku?",          c:"realia"},
+  {t:"Ides Martiae",    s:"Jak se latinsky řekne 15. březen — den zavraždění Caesara?",       c:"realia"},
+  {t:"Aeneas",          s:"Který trojský hrdina uprchl z Tróje a stal se předkem Římanů?",    c:"realia"},
+  {t:"Iuppiter",        s:"Kdo byl nejvyšším bohem římského panteonu, vládce blesku?",         c:"realia"},
+  {t:"Mars",            s:"Který bůh byl patronem válek a bojovníků?",                         c:"realia"},
+  {t:"Venus",           s:"Která bohyně vládla lásce a kráse?",                                c:"realia"},
+  {t:"Minerva",         s:"Která bohyně byla patronkou moudrosti a řemesel?",                  c:"realia"},
+  {t:"Neptun",          s:"Který bůh vládl mořím a zemětřesením?",                            c:"realia"},
+  {t:"veni vidi vici",  s:"Jaká Caesarova slova znamenají: přišel, viděl, zvítězil?",         c:"realia"},
+  {t:"alea iacta est",  s:"Jaká slova pronesl Caesar při překračování Rubikonu?",              c:"realia"},
+  {t:"carpe diem",      s:"Jaký latinský výrok Horatia znamená užij dne?",                    c:"realia"},
+  {t:"et tu Brute",     s:"Jaká slova pronesl Caesar, když ho bodal i jeho přítel Brutus?",   c:"realia"},
+  {t:"ave Caesar",      s:"Jak gladiátoři zdravili císaře před bojem v aréně?",               c:"realia"},
+  {t:"Roma",            s:"Jak se latinsky řekne věčné město — hlavní město říše?",            c:"realia"},
+  {t:"Carthago",        s:"Které město Cato vždy žádal zničit? (Carthago delenda est)",       c:"realia"},
+  {t:"gladiátor",       s:"Jak se nazýval bojovník trénovaný k zápasům v aréně?",             c:"realia"},
+  {t:"triumf",          s:"Jak se nazýval slavnostní průvod vítězného vojevůdce Římem?",       c:"realia"},
+  {t:"legie",           s:"Jak se jmenovala základní vojenská jednotka římské armády?",        c:"realia"},
+  {t:"toga",            s:"Jak se jmenoval charakteristický oděv římského občana?",            c:"realia"},
+  {t:"gladius",         s:"Jak se jmenoval krátký meč typický pro římské legionáře?",          c:"realia"},
+  {t:"aquila",          s:"Jak se jmenovala orlí standarta, symbol každé legie?",              c:"realia"},
+  {t:"senátor",         s:"Jak se nazýval člen nejvyššího poradního orgánu Říma?",            c:"realia"},
+  {t:"konzul",          s:"Kdo byl nejvyšším voleným úředníkem římské republiky?",             c:"realia"},
+  {t:"patron",          s:"Jak se nazýval mocný muž, který chránil a podporoval klienty?",    c:"realia"},
+  {t:"Vulcanus",        s:"Který bůh byl patronem ohně, kováren a řemesel?",                  c:"realia"},
+  {t:"Mercurius",       s:"Který bůh byl poslem bohů a ochráncem obchodníků?",                c:"realia"},
+  {t:"Pompeius",        s:"Kdo byl Caesarovým rivalem, poražen u Farsálu a zavražděn v Egyptě?", c:"realia"},
+];
+
+const LS_TERMS = 'lb_terms_v2';
+const LS_PW    = 'lb_pw_v1';
+function loadTerms(){try{const r=localStorage.getItem(LS_TERMS);if(r){const t=JSON.parse(r);if(Array.isArray(t)&&t.length)return t;}}catch(e){}return DEFAULT_TERMS.map(t=>({...t}));}
+function persistTerms(a){try{localStorage.setItem(LS_TERMS,JSON.stringify(a));}catch(e){}}
+function loadPw(){try{return localStorage.getItem(LS_PW)||'latina';}catch(e){return'latina';}}
+function persistPw(p){try{localStorage.setItem(LS_PW,p);}catch(e){}}
+
+let TERMS = loadTerms();
+let adminUnlocked = false;
+
+/* ── UTIL ── */
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+/* ── NAV ── */
+function switchScreen(name,btn){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('visible'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('screen-'+name).classList.add('visible');
+  if(btn)btn.classList.add('active');
+}
+
+/* ── PASSWORD ── */
+function openAdmin(){if(adminUnlocked){gotoAdmin();return;}document.getElementById('pw-modal').classList.add('open');document.getElementById('pw-input').value='';document.getElementById('pw-error').classList.remove('show');setTimeout(()=>document.getElementById('pw-input').focus(),50);}
+function closePwModal(){document.getElementById('pw-modal').classList.remove('open');}
+function checkPassword(){const v=document.getElementById('pw-input').value;if(v===loadPw()){adminUnlocked=true;closePwModal();gotoAdmin();}else{document.getElementById('pw-error').classList.add('show');document.getElementById('pw-input').value='';document.getElementById('pw-input').focus();}}
+function gotoAdmin(){document.getElementById('admin-nav-btn').classList.add('active');document.querySelectorAll('.nav-btn:not(#admin-nav-btn)').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.screen').forEach(s=>s.classList.remove('visible'));document.getElementById('screen-admin').classList.add('visible');renderAdminList();}
+function changePassword(){const np=prompt('Nové heslo (min. 4 znaky):');if(!np)return;if(np.length<4){alert('Min. 4 znaky.');return;}persistPw(np);alert('Heslo bylo změněno.');}
+document.getElementById('pw-modal').addEventListener('click',function(e){if(e.target===this)closePwModal();});
+
+/* ════════════════════════════════════════════
+   TEACHER – DRAW
+════════════════════════════════════════════ */
+let drawnIdx=[];
+let answerVisible=false;
+
+function drawTerm(){
+  const rem=TERMS.map((_,i)=>i).filter(i=>!drawnIdx.includes(i));
+  if(!rem.length)return;
+  const pick=rem[Math.floor(Math.random()*rem.length)];
+  drawnIdx.push(pick);
+  const term=TERMS[pick];
+  document.getElementById('cur-q').textContent=term.s;
+  answerVisible=false;
+  const ans=document.getElementById('cur-answer');
+  ans.textContent=term.t;
+  ans.classList.remove('show');
+  const revBtn=document.querySelector('#reveal-wrap .draw-reveal-btn');
+  if(revBtn)revBtn.textContent='▸ Ukázat odpověď';
+  document.getElementById('reveal-wrap').style.display='block';
+  document.getElementById('cur-cat').textContent=term.c==='vocab'?'Latinské slovíčko':'Římské reálie';
+  document.getElementById('cur-cat').className='draw-cat '+term.c;
+  document.getElementById('prog-wrap').style.display='block';
+  const pct=Math.round(drawnIdx.length/TERMS.length*100);
+  document.getElementById('prog-fill').style.width=pct+'%';
+  document.getElementById('prog-label').textContent=drawnIdx.length+' / '+TERMS.length+' pojmů';
+  document.getElementById('drawn-wrap').style.display='block';
+  document.getElementById('drawn-count').textContent=drawnIdx.length+' pojmů';
+  const chip=document.createElement('span');
+  chip.className='chip '+term.c;chip.textContent=term.t;chip.title=term.s;
+  document.getElementById('chips').prepend(chip);
+  if(drawnIdx.length>=TERMS.length)document.getElementById('btn-draw').disabled=true;
+}
+function toggleAnswer(){
+  answerVisible=!answerVisible;
+  document.getElementById('cur-answer').classList.toggle('show',answerVisible);
+  const btn=document.querySelector('#reveal-wrap .draw-reveal-btn');
+  btn.textContent=answerVisible?'▾ Skrýt odpověď':'▸ Ukázat odpověď';
+}
+function resetDraw(){
+  drawnIdx=[];answerVisible=false;
+  document.getElementById('cur-q').textContent='Stiskni tlačítko a začni hrát ↓';
+  document.getElementById('reveal-wrap').style.display='none';
+  document.getElementById('cur-answer').classList.remove('show');
+  document.getElementById('prog-wrap').style.display='none';
+  document.getElementById('prog-fill').style.width='0%';
+  document.getElementById('drawn-wrap').style.display='none';
+  document.getElementById('chips').innerHTML='';
+  document.getElementById('btn-draw').disabled=false;
+}
+
+/* ════════════════════════════════════════════
+   STUDENT – CARD BUILDER
+   cardSlots[0..24]: null | termIndex
+   slot 12 = FREE (always locked)
+════════════════════════════════════════════ */
+const SLOTS  = 25;
+const FREE_SLOT = 12;
+let cardSlots = Array(SLOTS).fill(null); // null = empty
+let selectedPoolIdx = null; // which term is currently "picked up" from pool
+
+function initBuilder(){
+  cardSlots = Array(SLOTS).fill(null);
+  selectedPoolIdx = null;
+  renderBuildGrid();
+  renderPool();
+  updateBadge();
+  document.getElementById('btn-play').disabled = true;
+  document.getElementById('pool-search').value = '';
+}
+
+/* ── BUILD GRID ── */
+function renderBuildGrid(){
+  const grid = document.getElementById('build-grid');
+  grid.innerHTML = '';
+  for(let i = 0; i < SLOTS; i++){
+    const div = document.createElement('div');
+    if(i === FREE_SLOT){
+      div.className = 'bcell free';
+      div.textContent = 'FREE';
+    } else if(cardSlots[i] !== null){
+      const term = TERMS[cardSlots[i]];
+      div.className = 'bcell filled';
+      div.textContent = term.t;
+      div.title = term.s;
+      // click filled cell: if nothing selected from pool → remove; if something selected → replace
+      div.onclick = () => clickFilledCell(i);
+      // small ✕ button
+      const rm = document.createElement('button');
+      rm.className = 'bcell-remove'; rm.textContent = '✕'; rm.title = 'Odebrat';
+      rm.onclick = (e) => { e.stopPropagation(); removeFromSlot(i); };
+      div.appendChild(rm);
+    } else {
+      // empty slot
+      div.className = 'bcell' + (selectedPoolIdx !== null ? ' empty-highlight' : '');
+      div.textContent = selectedPoolIdx !== null ? '+' : '';
+      div.onclick = () => clickEmptyCell(i);
+    }
+    // highlight if this slot is the "target"
+    grid.appendChild(div);
+  }
+}
+
+function clickEmptyCell(slotIdx){
+  if(selectedPoolIdx === null) return; // nothing to place
+  placeTermInSlot(slotIdx, selectedPoolIdx);
+  selectedPoolIdx = null;
+  renderBuildGrid();
+  renderPool();
+  updateBadge();
+}
+
+function clickFilledCell(slotIdx){
+  if(selectedPoolIdx !== null){
+    // replace existing term
+    placeTermInSlot(slotIdx, selectedPoolIdx);
+    selectedPoolIdx = null;
+    renderBuildGrid();
+    renderPool();
+    updateBadge();
+  } else {
+    // just remove it
+    removeFromSlot(slotIdx);
+  }
+}
+
+function placeTermInSlot(slotIdx, termIdx){
+  // if term already in another slot, remove from there
+  const existing = cardSlots.indexOf(termIdx);
+  if(existing !== -1) cardSlots[existing] = null;
+  cardSlots[slotIdx] = termIdx;
+}
+
+function removeFromSlot(slotIdx){
+  cardSlots[slotIdx] = null;
+  if(selectedPoolIdx !== null){ selectedPoolIdx = null; }
+  renderBuildGrid();
+  renderPool();
+  updateBadge();
+}
+
+function updateBadge(){
+  const filled = cardSlots.filter((_,i) => i !== FREE_SLOT && cardSlots[i] !== null).length;
+  const badge  = document.getElementById('slots-badge');
+  badge.textContent = filled + ' / 24 políček';
+  badge.className   = 'slots-badge' + (filled === 24 ? ' done' : '');
+  document.getElementById('btn-play').disabled = filled < 24;
+}
+
+/* ── POOL ── */
+function renderPool(){
+  const query    = (document.getElementById('pool-search').value||'').toLowerCase();
+  const inUseSet = new Set(cardSlots.filter(v => v !== null));
+  const list     = document.getElementById('pool-list');
+  list.innerHTML = '';
+  let shown = 0;
+  TERMS.forEach((term, i) => {
+    if(query && !term.t.toLowerCase().includes(query) && !term.s.toLowerCase().includes(query)) return;
+    const div = document.createElement('div');
+    const isSel   = i === selectedPoolIdx;
+    const isInUse = inUseSet.has(i);
+    div.className = 'pool-item' + (isSel ? ' selected-pool' : '') + (isInUse ? ' in-use' : '');
+    div.innerHTML =
+      `<span class="pi-lat">${esc(term.t)}</span>` +
+      `<span class="pi-cat ${term.c}">${term.c==='vocab'?'slov.':'reál.'}</span>`;
+    div.title = term.s;
+    if(!isInUse) div.onclick = () => selectFromPool(i);
+    list.appendChild(div);
+    shown++;
+  });
+  document.getElementById('pool-count').textContent = shown;
+  if(shown === 0){
+    const e = document.createElement('div'); e.className='pool-empty'; e.textContent='Nic nenalezeno.';
+    list.appendChild(e);
+  }
+}
+function filterPool(){ renderPool(); }
+function selectFromPool(i){
+  selectedPoolIdx = (selectedPoolIdx === i) ? null : i;
+  renderBuildGrid();
+  renderPool();
+}
+
+/* ── RANDOM FILL ── */
+function randomFillRemaining(){
+  const inUseSet = new Set(cardSlots.filter(v => v !== null));
+  const avail    = shuffle(TERMS.map((_,i)=>i).filter(i => !inUseSet.has(i)));
+  let ai = 0;
+  for(let s = 0; s < SLOTS; s++){
+    if(s === FREE_SLOT) continue;
+    if(cardSlots[s] === null){
+      if(ai >= avail.length) break;
+      cardSlots[s] = avail[ai++];
+    }
+  }
+  selectedPoolIdx = null;
+  renderBuildGrid();
+  renderPool();
+  updateBadge();
+}
+
+function clearCard(){
+  cardSlots = Array(SLOTS).fill(null);
+  selectedPoolIdx = null;
+  renderBuildGrid();
+  renderPool();
+  updateBadge();
+}
+
+/* ════════════════════════════════════════════
+   STUDENT – PLAY MODE
+════════════════════════════════════════════ */
+let playMarked = [];
+let wonFlag    = false;
+
+function startPlaying(){
+  const filled = cardSlots.filter((_,i) => i !== FREE_SLOT && cardSlots[i] !== null).length;
+  if(filled < 24) return;
+  // playMarked mirrors cardSlots — true for FREE, false for rest
+  playMarked = cardSlots.map((_,i) => i === FREE_SLOT);
+  wonFlag    = false;
+  document.getElementById('win-banner').classList.remove('show');
+  renderPlayGrid();
+  document.getElementById('view-builder').style.display = 'none';
+  document.getElementById('view-card').style.display    = 'block';
+  window.scrollTo(0,0);
+}
+
+function renderPlayGrid(){
+  const grid = document.getElementById('bingo-grid');
+  grid.innerHTML = '';
+  for(let i = 0; i < SLOTS; i++){
+    const div = document.createElement('div');
+    if(i === FREE_SLOT){
+      div.className = 'cell free';
+      div.textContent = 'FREE';
+    } else {
+      const term = TERMS[cardSlots[i]];
+      let cls = 'cell';
+      if(playMarked[i]) cls += ' marked';
+      div.className   = cls;
+      div.textContent = term ? term.t : '';
+      div.title       = term ? term.s : '';
+      div.onclick     = () => togglePlayCell(i);
+    }
+    grid.appendChild(div);
+  }
+}
+
+function togglePlayCell(i){
+  if(i === FREE_SLOT) return;
+  playMarked[i] = !playMarked[i];
+  renderPlayGrid();
+  checkWin();
+}
+
+const WIN_LINES=[
+  [0,1,2,3,4],[5,6,7,8,9],[10,11,12,13,14],[15,16,17,18,19],[20,21,22,23,24],
+  [0,5,10,15,20],[1,6,11,16,21],[2,7,12,17,22],[3,8,13,18,23],[4,9,14,19,24],
+  [0,6,12,18,24],[4,8,12,16,20]
+];
+function checkWin(){
+  if(wonFlag)return;
+  for(const line of WIN_LINES){
+    if(line.every(i=>playMarked[i])){
+      wonFlag=true;
+      document.getElementById('win-banner').classList.add('show');
+      document.getElementById('win-banner').scrollIntoView({behavior:'smooth'});
+      document.querySelectorAll('.bingo-grid .cell').forEach((el,i)=>{
+        if(line.includes(i))el.className='cell win-cell';
+      });
+      return;
+    }
+  }
+}
+function resetMarks(){
+  playMarked=cardSlots.map((_,i)=>i===FREE_SLOT);
+  wonFlag=false;
+  document.getElementById('win-banner').classList.remove('show');
+  renderPlayGrid();
+}
+function backToBuilder(){
+  document.getElementById('view-card').style.display   ='none';
+  document.getElementById('view-builder').style.display='block';
+}
+
+/* ════════════════════════════════════════════
+   ADMIN
+════════════════════════════════════════════ */
+let editTerms=[];
+function renderAdminList(){
+  editTerms=TERMS.map(t=>({...t}));
+  const list=document.getElementById('term-list');list.innerHTML='';
+  editTerms.forEach((term,i)=>{
+    const row=document.createElement('div');
+    row.className=`te-item ${term.c}-row`;row.dataset.i=i;
+    row.innerHTML=
+      `<input class="te-input lat" type="text" value="${esc(term.t)}" placeholder="Název" data-field="t">`+
+      `<input class="te-input"     type="text" value="${esc(term.s)}" placeholder="Otázka pro žáky" data-field="s">`+
+      `<select class="te-select" data-field="c"><option value="vocab" ${term.c==='vocab'?'selected':''}>Slovíčko</option><option value="realia" ${term.c==='realia'?'selected':''}>Reálie</option></select>`+
+      `<button class="btn-del" onclick="deleteTerm(${i})" title="Smazat">🗑</button>`;
+    row.querySelectorAll('[data-field]').forEach(el=>{
+      el.addEventListener('input',()=>syncRow(row,i));
+      el.addEventListener('change',()=>syncRow(row,i));
+    });
+    list.appendChild(row);
+  });
+  document.getElementById('admin-count').textContent=editTerms.length+' pojmů celkem';
+  document.getElementById('save-note').textContent='';
+}
+function syncRow(row,i){
+  row.querySelectorAll('[data-field]').forEach(el=>{editTerms[i][el.dataset.field]=el.value.trim?el.value.trim():el.value;});
+  row.className=`te-item ${editTerms[i].c}-row`;
+}
+function addTerm(){
+  const t=document.getElementById('new-term').value.trim();
+  const s=document.getElementById('new-q').value.trim();
+  const c=document.getElementById('new-cat').value;
+  if(!t||!s){alert('Vyplň název i otázku.');return;}
+  TERMS.push({t,s,c});persistTerms(TERMS);
+  document.getElementById('new-term').value='';
+  document.getElementById('new-q').value='';
+  renderAdminList();initBuilder();
+  document.getElementById('save-note').textContent='✓ Pojem přidán.';
+}
+function deleteTerm(i){
+  if(!confirm(`Smazat pojem „${editTerms[i].t}"?`))return;
+  editTerms.splice(i,1);TERMS=editTerms.map(t=>({...t}));persistTerms(TERMS);
+  initBuilder();renderAdminList();
+}
+function saveTerms(){
+  document.querySelectorAll('.te-item').forEach((row,i)=>{
+    row.querySelectorAll('[data-field]').forEach(el=>{
+      if(editTerms[i])editTerms[i][el.dataset.field]=el.tagName==='SELECT'?el.value:el.value.trim();
+    });
+  });
+  const bad=editTerms.filter(t=>!t.t||!t.s);
+  if(bad.length){alert('Některé pojmy nemají vyplněný název nebo otázku.');return;}
+  TERMS=editTerms.map(t=>({...t}));persistTerms(TERMS);
+  initBuilder();
+  document.getElementById('save-note').textContent='✓ Uloženo '+new Date().toLocaleTimeString('cs-CZ');
+}
+function resetToDefaults(){
+  if(!confirm('Obnovit všechny výchozí pojmy? Tvé změny budou ztraceny.'))return;
+  TERMS=DEFAULT_TERMS.map(t=>({...t}));persistTerms(TERMS);
+  initBuilder();renderAdminList();
+}
+
+/* ── INIT ── */
+initBuilder();
+</script>
+</body>
+</html>
